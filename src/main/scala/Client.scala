@@ -24,7 +24,7 @@ object Client extends App {
 			List("SubredditDrama", "pics") foreach (Frontend.frontend ! SearchSubreddit(_))
 		}
 		case "map" => {
-			val pw = new java.io.PrintWriter(new File("linkmap.out"))
+			val pw = new java.io.PrintWriter(new File("out/linkmap.dot"))
 			try pw.write(LinkMap.toDotBySubreddit) finally pw.close
 		}
 		case _ => //do nothing
