@@ -1,48 +1,45 @@
 package nodes
 
-import scala.annotation.varargs
 import com.typesafe.config.ConfigFactory
-import akka.actor.Actor
-import akka.actor.ActorSystem
-import akka.actor.Props
-import akka.actor.actorRef2Scala
-import akka.cluster.Cluster
-import akka.cluster.ClusterEvent.InitialStateAsEvents
-import akka.cluster.ClusterEvent.MemberUp
+
+import akka.actor.{Actor, ActorRef, ActorSystem, Props, actorRef2Scala}
+import kuhn.api.{links, subreddit}
 import linkmap.LinkMap
-import walker.AddToLinkMap
-import walker.RegisterLinkWorker
-import walker.SearchSubreddit
-import walker.SubredditWorker
-import akka.actor.Address
-import akka.actor.ActorLogging
+import walker.{AddToLinkMap, RegisterLinkWorker, SearchSubreddit, WalkLink}
 
 object Frontend extends App {	
 	
-	val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + 8988)
+	private val config = ConfigFactory.parseString("akka.remote.netty.tcp.port=" + 8988)
 	 	.withFallback(ConfigFactory.parseString("akka.cluster.roles = [frontend]"))
-        .withFallback(ConfigFactory.load())
+		.withFallback(ConfigFactory.load())
 	val system = ActorSystem("ClusterSystem", config)
 	
 	val frontend = system.actorOf(Props[Frontend], name = "frontend")
-//	
-//	println("SLEEP...")
-//	Thread.sleep(60000)
-//	
-//	println(LinkMap toDot)
+	
+	def shutdown {
+		system.shutdown
+	}
 }
 
-class Frontend extends Actor with ActorLogging {
+class Frontend extends Actor {
 	
-	val subredditWorker = context.actorOf(Props[SubredditWorker])
+	var backendWorkers = IndexedSeq[ActorRef]()
+	var subredditWorkers = IndexedSeq[ActorRef]()
+	var jobCount = 0
 	
-	def receive = {		
-		case ss : SearchSubreddit => println("WOW! WE HAVE SOMETHING!") ; subredditWorker forward ss
+	def receive = {	
 		
-		case rlw : RegisterLinkWorker => subredditWorker forward rlw
+		case SearchSubreddit(name) =>
+			val subredditWorker = context.actorOf(Props(classOf[SubredditWorker], name), name)
+			backendWorkers foreach {subredditWorker ! RegisterLinkWorker(_)}
+			subredditWorkers = subredditWorkers :+ subredditWorker
 		
-		case AddToLinkMap(source, destination) => LinkMap(source) = destination
+		case rlw : RegisterLinkWorker if !backendWorkers.contains(sender) => 
+			backendWorkers = backendWorkers :+ sender
+			subredditWorkers foreach {_ forward rlw}
+		
+		case AddToLinkMap(source, destination) =>
+			println("adding to linkMap: " + source + " -> " + destination)
+			LinkMap(source) = destination
 	}
-	
-	
 }

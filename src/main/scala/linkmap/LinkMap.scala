@@ -5,7 +5,7 @@ import scala.collection.mutable.Map
 
 object LinkMap extends Map[CommentLocation, CommentLocation] {
 	
-	val map = TrieMap[CommentLocation, CommentLocation]()
+	val map = Map[CommentLocation, CommentLocation]()
 	
 	def -= (k : CommentLocation) = {
 		map -= k
@@ -27,9 +27,18 @@ object LinkMap extends Map[CommentLocation, CommentLocation] {
 		map map { case (k, v) => k + "\n -> " + v } mkString "\n"
 	}
 	
-	def toDot = {
+	def toDot : String = {
 		"digraph {\n" +
 		{ map map { case (k, v) => "\t" + k + " -> " + v + " ;" } mkString "\n" } +
 		"\n}"
+	}
+
+	def toDotBySubreddit : String = {
+		"digraph {\n" +
+		map.toList.map{case (k, v) => (k.subreddit, v.subreddit)}
+				  .groupBy{tuple => tuple}
+				  .map{case ((source, destination), values) => "\t" + source + " -> " + destination + " [label=" + values.length + "] ;"}
+				  .mkString("\n") + 
+		"\n}"	
 	}
 }
